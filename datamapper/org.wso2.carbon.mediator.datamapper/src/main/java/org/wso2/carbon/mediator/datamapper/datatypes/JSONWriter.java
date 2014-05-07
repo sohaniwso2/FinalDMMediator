@@ -52,17 +52,19 @@ public class JSONWriter implements OutputWriter {
 	 *            output data type
 	 * @param result
 	 *            mapping result
-	 * @return the output as an OMElement
+	 * @return the output as a String
 	 * @throws IOException
 	 */
 
-	public OMElement getOutputMessage(String outputType, GenericRecord result)
+	public String getOutputMessage(String outputType, GenericRecord result)
 			throws SynapseException, IOException {
 
 		DatumWriter<GenericRecord> writer = null;
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 		Encoder encoder = new DummyEncoder(byteArrayOutputStream);
-		OMElement outMessage = null;
+		//OMElement outMessage = null;
+		String outMessage = null;
+		
 		try {
 
 			writer = WriterRegistry.getInstance().get(outputType).newInstance();
@@ -80,14 +82,17 @@ public class JSONWriter implements OutputWriter {
 			encoder.flush();
 		}
 	
-		try {
+		/*try {
 			// Converts the result into an OMElement
 			outMessage = getOutputResult(byteArrayOutputStream.toString());
 		} catch (XMLStreamException e) {
 			handleException(
 					"Failed at generating the OMElement for the JSON output received...",
 					e);
-		}
+		}*/
+		
+		outMessage = byteArrayOutputStream.toString();
+		
 		return outMessage;
 	}
 

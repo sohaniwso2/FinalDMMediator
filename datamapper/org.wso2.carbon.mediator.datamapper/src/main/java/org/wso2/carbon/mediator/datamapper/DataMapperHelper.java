@@ -18,21 +18,31 @@
  */
 package org.wso2.carbon.mediator.datamapper;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+
+import javax.xml.stream.XMLStreamException;
+
 import org.apache.avro.generic.GenericRecord;
 import org.apache.axiom.om.OMElement;
+import org.apache.axiom.om.util.AXIOMUtil;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.SynapseException;
+import org.apache.synapse.commons.json.JsonUtil;
+import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.json.JSONException;
 import org.wso2.carbon.mediator.datamapper.datatypes.InputOutputDataTypes;
+import org.wso2.carbon.mediator.datamapper.datatypes.InputOutputDataTypes.DataType;
 import org.wso2.carbon.mediator.datamapper.datatypes.OutputWriter;
 import org.wso2.carbon.mediator.datamapper.datatypes.OutputWriterFactory;
 import org.wso2.datamapper.engine.core.MappingHandler;
 import org.wso2.datamapper.engine.core.MappingResourceLoader;
 import org.wso2.datamapper.engine.inputAdapters.CsvInputReader;
 import org.wso2.datamapper.engine.inputAdapters.InputDataReaderAdapter;
+import org.wso2.datamapper.engine.inputAdapters.JsonInputReader;
 import org.wso2.datamapper.engine.inputAdapters.XmlInputReader;
 
 /**
@@ -41,7 +51,7 @@ import org.wso2.datamapper.engine.inputAdapters.XmlInputReader;
  */
 public class DataMapperHelper {
 
-	private final static  Log log = LogFactory.getLog(DataMapperHelper.class);
+	private final static Log log = LogFactory.getLog(DataMapperHelper.class);
 
 	/**
 	 * Does message conversion and gives the output message as the final result
@@ -63,25 +73,38 @@ public class DataMapperHelper {
 	 * @throws SynapseException
 	 * @throws IOException
 	 */
-	public static void transform(MessageContext context, String configkey,
-			String inSchemaKey, String outSchemaKey, String inputType,
-			String outputType, String uuid) throws SynapseException,
-			IOException {
+	public static void transform(MessageContext context, String configkey, String inSchemaKey,
+			String outSchemaKey, String inputType, String outputType, String uuid)
+			throws SynapseException, IOException {
 
 		MappingResourceLoader mappingResourceLoader = null;
-		OMElement inputMessage, outputMessage = null;
+		// OMElement inputMessage, outputMessage = null;
+		InputStream inputStream = null;
+		String outputMessage = null;
 
 		try {
 			// Gets the mapping resources needed for the final output
-			mappingResourceLoader = CacheResources.getCachedResources(context,
-					configkey, inSchemaKey, outSchemaKey, uuid);
+			mappingResourceLoader = CacheResources.getCachedResources(context, configkey,
+					inSchemaKey, outSchemaKey, uuid);
 		}
 
 		catch (Exception e) {
 			handleException("Caching failed...", e);
 		}
 
-		inputMessage = context.getEnvelope();
+		// inputMessage = context.getEnvelope();
+		org.apache.axis2.context.MessageContext axis2MessageContext = ((Axis2MessageContext) context)
+				.getAxis2MessageContext();
+
+		if (inputType.equals(DataType.JSON.toString())) {
+			// JSON input is taken from axis2MessageContext
+			inputStream = JsonUtil.getJsonPayload(axis2MessageContext);
+		} else {
+			// XML, CSV input is taken from SOAP envelope
+			// FIXME Implement this in better way.
+			inputStream = new ByteArrayInputStream(context.getEnvelope().toString().getBytes());
+		}
+
 		InputDataReaderAdapter inputReader = null;
 		try {
 			// FIXME include DatumReaders
@@ -93,19 +116,15 @@ public class DataMapperHelper {
 
 		GenericRecord result = null;
 		try {
-			result = MappingHandler.doMap(inputMessage, mappingResourceLoader,
-					inputReader);
+			result = MappingHandler.doMap(inputStream, mappingResourceLoader, inputReader);
 		} catch (IllegalAccessException e) {
-			handleException(
-					"Mapping failed at generating the output result...", e);
+			handleException("Mapping failed at generating the output result...", e);
 
 		} catch (InstantiationException e) {
-			handleException(
-					"Mapping failed at generating the output result...", e);
+			handleException("Mapping failed at generating the output result...", e);
 
 		} catch (JSONException e) {
-			handleException(
-					"Mapping failed at generating the output result...", e);
+			handleException("Mapping failed at generating the output result...", e);
 		}
 
 		// Gets the Output message based on output data type
@@ -113,9 +132,7 @@ public class DataMapperHelper {
 		try {
 			outputMessage = writer.getOutputMessage(outputType, result);
 		} catch (Exception e) {
-			handleException(
-					"Generating output message from datum writers failed ....",
-					e);
+			handleException("Generating output message from datum writers failed ....", e);
 		}
 
 		if (outputMessage != null) {
@@ -123,7 +140,20 @@ public class DataMapperHelper {
 				log.debug("Output message received ... ");
 			}
 
-			SOAPMessage.createSOAPMessage(outputMessage, context);
+			if (!outputType.equals(DataType.JSON.toString())) {
+				// XML, CSV payload will be set in SOAP body
+				OMElement omXML;
+				try {
+					omXML = AXIOMUtil.stringToOM(outputMessage);
+					SOAPMessage.createSOAPMessage(omXML, context);
+				} catch (XMLStreamException e) {
+					handleException(
+							"Failed at generating the OMElement for the output received...", e);
+				}
+			} else {
+				// JSON payload will be set in axis2MessageContext
+				JsonUtil.newJsonPayload(axis2MessageContext, outputMessage, true, true);
+			}
 		}
 	}
 
@@ -137,8 +167,8 @@ public class DataMapperHelper {
 	 * @return the input as a OMElement
 	 * @throws IOException
 	 */
-	private static InputDataReaderAdapter convertInputMessage(
-			String inputDataType) throws IOException {
+	private static InputDataReaderAdapter convertInputMessage(String inputDataType)
+			throws IOException {
 		InputDataReaderAdapter inputReader = null;
 
 		if (inputDataType != null) {
@@ -152,8 +182,12 @@ public class DataMapperHelper {
 			case XML:
 				inputReader = new XmlInputReader();
 				break;
+			case JSON:
+				inputReader = new JsonInputReader();
+				break;
 			default:
-				// HandleJSONMessages.getOutputMessage(outputDataType, result);
+				inputReader = new XmlInputReader();
+				break;
 			}
 		} else {
 			// FIXME with default dataType if user didn't mention input dataType

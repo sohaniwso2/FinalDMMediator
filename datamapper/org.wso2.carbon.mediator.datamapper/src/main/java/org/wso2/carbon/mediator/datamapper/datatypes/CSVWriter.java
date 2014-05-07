@@ -50,17 +50,17 @@ public class CSVWriter implements OutputWriter {
 	 *            output data type
 	 * @param result
 	 *            mapping result
-	 * @return the output as an OMElement
+	 * @return the output as a String
 	 * @throws IOException
 	 */
 
-	public OMElement getOutputMessage(String outputType, GenericRecord result)
+	public String getOutputMessage(String outputType, GenericRecord result)
 			throws SynapseException, IOException {
 
 		DatumWriter<GenericRecord> writer = null;
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 		Encoder encoder = new DummyEncoder(byteArrayOutputStream);
-		OMElement outMessage = null;
+		String outMessage = null;
 		try {
 
 			writer = WriterRegistry.getInstance().get(outputType).newInstance();
@@ -80,7 +80,10 @@ public class CSVWriter implements OutputWriter {
 
 		// Converts the result into an OMElement
 		try {
-			outMessage = getOutputResult(byteArrayOutputStream.toString());
+			OMElement output = getOutputResult(byteArrayOutputStream.toString());
+			if (output != null) {
+				outMessage = output.toString();
+			}
 		} catch (XMLStreamException e) {
 			handleException(
 					"Failed at generating the OMElement for the CSV output received...",

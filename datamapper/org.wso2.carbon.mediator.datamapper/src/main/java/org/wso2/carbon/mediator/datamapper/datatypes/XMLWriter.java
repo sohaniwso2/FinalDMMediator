@@ -51,17 +51,18 @@ public class XMLWriter implements OutputWriter {
 	 *            output data type
 	 * @param result
 	 *            mapping result
-	 * @return the output as an OMElement
+	 * @return the output as a String
 	 * @throws IOException
 	 */
 
-	public OMElement getOutputMessage(String outputType, GenericRecord result)
+	public String getOutputMessage(String outputType, GenericRecord result)
 			throws SynapseException, IOException {
 
 		DatumWriter<GenericRecord> writer = null;
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 		Encoder encoder = new DummyEncoder(byteArrayOutputStream);
-		OMElement outMessage = null;
+		//OMElement outMessage = null;
+		String outMessage = null;
 		try {
 
 			writer = WriterRegistry.getInstance().get(outputType).newInstance();
@@ -73,7 +74,7 @@ public class XMLWriter implements OutputWriter {
 						+ byteArrayOutputStream.toString());
 			}
 			// Converts the result into the desired outputType
-			outMessage = getOutputResult(byteArrayOutputStream.toString());
+			//outMessage = getOutputResult(byteArrayOutputStream.toString());
 
 		} catch (Exception e) {
 			handleException("Data coversion Failed at XMLWriter..", e);
@@ -81,14 +82,17 @@ public class XMLWriter implements OutputWriter {
 			encoder.flush();
 		}
 
-		try {
+		/*try {
 			// Converts the result into an OMElement
 			outMessage = getOutputResult(byteArrayOutputStream.toString());
 		} catch (XMLStreamException e) {
 			handleException(
 					"Failed at generating the OMElement for the XML output received...",
 					e);
-		}
+		}*/
+		
+		outMessage = byteArrayOutputStream.toString();
+		
 		return outMessage;
 	}
 

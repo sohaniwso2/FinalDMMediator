@@ -29,7 +29,7 @@ import org.apache.axiom.om.OMElement;
  */
 public interface OutputWriter {
 
-	public OMElement getOutputMessage(String outputType,
+	public String getOutputMessage(String outputType,
 			GenericRecord result) throws IOException;
 
 }
