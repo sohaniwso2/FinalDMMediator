@@ -125,6 +125,8 @@ public class DataMapperHelper {
 
 		} catch (JSONException e) {
 			handleException("Mapping failed at generating the output result...", e);
+		} catch (Exception e) {
+			handleException("Mapping failed at generating the output result...", e);
 		}
 
 		// Gets the Output message based on output data type
